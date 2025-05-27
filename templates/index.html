@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Management App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <header>
+        <h1>Task Management App</h1>
+    </header>
+
+    <button id="add-new-task-btn">Add New Task</button>
+
+    <div id="main-container">
+        <div id="task-list-area">
+            <h2>Active Tasks</h2>
+            {% if tasks %}
+                {% for task in tasks %}
+                    {% set is_overdue = task.limitDate and task.limitDate < today %}
+                    {% set is_due_soon = task.limitDate and today < task.limitDate and task.limitDate <= today + timedelta(days=7) %}
+                    {% set card_class = 'overdue' if is_overdue else 'due-soon' if is_due_soon else 'default-color' %}
+                    
+                    <div class="task-card {{ card_class }}" data-task-id="{{ task.id }}">
+                        <h3>{{ task.name }}</h3>
+                        <p>Limit: {{ task.limitDate.strftime('%Y-%m-%d') if task.limitDate else 'N/A' }}</p>
+                        <p>Period: {{ task.period if task.period else 'N/A' }}</p>
+                        <p>Status: {{ task.status }}</p>
+                        <!-- More details can be added later -->
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>No active tasks found.</p>
+            {% endif %}
+        </div>
+        <div id="gantt-chart-area">
+            <!-- Gantt chart will go here -->
+        </div>
+    </div>
+
+    <div id="ended-tasks-section">
+        <h2>Ended Tasks</h2>
+        <!-- Ended tasks will go here -->
+    </div>
+
+    <div id="deleted-tasks-section">
+        <h2>Deleted Tasks</h2>
+        <!-- Deleted tasks will go here -->
+    </div>
+
+    <div id="add-task-modal" class="modal hidden">
+        <div class="modal-content">
+            <form id="add-task-form">
+                <div>
+                    <label for="task-name">Name:</label>
+                    <input type="text" id="task-name" name="name" required>
+                </div>
+                <div>
+                    <label for="task-detail">Detail:</label>
+                    <textarea id="task-detail" name="detail"></textarea>
+                </div>
+                <div>
+                    <label for="task-limit-date">Limit Date:</label>
+                    <input type="date" id="task-limit-date" name="limitDate">
+                </div>
+                <div>
+                    <label for="task-period">Period:</label>
+                    <input type="text" id="task-period" name="period" placeholder="e.g., 2d, 1w, 2m">
+                </div>
+                <div>
+                    <label for="task-not-main">[not Main]</label>
+                    <input type="checkbox" id="task-not-main" name="notMain">
+                </div>
+                <button type="submit">Make</button>
+                <button type="button" id="cancel-add-task-btn">Cancel</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
