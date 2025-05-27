@@ -234,6 +234,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // console.log('[Gantt] Appended task bar for:', task.name, taskBarDiv);
             taskVisibleCount++;
         });
+        } // Closes: if (Array.isArray(tasksData))
 
         if (taskVisibleCount === 0 && tasksData.length > 0) {
             // console.log('[Gantt] No tasks were eligible for rendering after filtering (e.g. no startDate, or outside view range).');
