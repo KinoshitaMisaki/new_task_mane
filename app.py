@@ -18,8 +18,21 @@ with app.app_context():
 
 @app.route('/')
 def index():
-    # Fetch active tasks, ordered by orderIndex, then createdAt
-    active_tasks = Task.query.filter_by(status='active').order_by(Task.orderIndex.asc(), Task.createdAt.desc()).all()
+    current_sort_by = request.args.get('sort_by', 'orderIndex') # Default to 'orderIndex' (drag-drop)
+    order_criteria = []
+
+    if current_sort_by == 'limitDate_asc':
+        order_criteria = [Task.limitDate.asc().nullslast(), Task.orderIndex.asc()]
+    elif current_sort_by == 'limitDate_desc':
+        # Ensure nulls are first for descending limitDate, as per subtask
+        order_criteria = [Task.limitDate.desc().nullsfirst(), Task.orderIndex.asc()]
+    elif current_sort_by == 'createdAt_desc':
+        order_criteria = [Task.createdAt.desc(), Task.orderIndex.asc()] # Keep orderIndex for stability
+    else: # Default sort: 'orderIndex' (maps to orderIndex_asc)
+        current_sort_by = 'orderIndex' # Ensure the key is consistent for the template
+        order_criteria = [Task.orderIndex.asc(), Task.createdAt.desc()]
+    
+    active_tasks = Task.query.filter_by(status='active').order_by(*order_criteria).all()
     
     # Keep fetching ended and deleted tasks as the existing template structure might use them.
     # The subtask asks for placeholders for these sections in HTML, implying they might be populated.
@@ -35,11 +48,10 @@ def index():
     
     # The subtask example for task cards implies 'tasks' should be a list of Task objects,
     # not dictionaries, to allow for task.limitDate.strftime('%Y-%m-%d').
-    # The existing 'current_sort_by' is not used in the simplified task list for this subtask.
-    # We can pass it if other parts of the template rely on it.
-    current_sort_by = request.args.get('sort_by', 'createdAt_desc') # Default to new sort for active tasks
-
+    # current_sort_by is now set above based on logic.
+    
     # Prepare data for Gantt chart (needs to be JSON serializable with all fields)
+    # This uses active_tasks which is now sorted according to current_sort_by.
     active_tasks_dicts_for_gantt = [task.to_dict() for task in active_tasks]
     tasks_for_gantt_json = json.dumps(active_tasks_dicts_for_gantt)
 
