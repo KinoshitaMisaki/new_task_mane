@@ -29,7 +29,21 @@ document.addEventListener('DOMContentLoaded', function() {
     viewEndDate.setFullYear(today.getFullYear() + 1); 
 
     function renderGanttChart() {
-        if (!timelineHeaderEl || !taskRowsContainerEl) return;
+        // Step 2 & 3 Logging: Verify function call and data availability
+        console.log('[GANTT_DEBUG] renderGanttChart() function called.');
+        console.log('[GANTT_DEBUG] tasksData available to renderGanttChart:', typeof tasksData !== 'undefined' ? JSON.parse(JSON.stringify(tasksData)) : 'NOT DEFINED');
+        console.log('[GANTT_DEBUG] todayData available to renderGanttChart:', typeof todayData !== 'undefined' ? todayData : 'NOT DEFINED');
+
+        if (!timelineHeaderEl || !taskRowsContainerEl) {
+            console.error("[GANTT_DEBUG] Gantt timeline header or task rows container not found in renderGanttChart. Aborting render.");
+            return;
+        }
+        
+        // This is the previous detailed log, now potentially redundant with the one above but kept for historical context from previous debug step.
+        // console.log('[Gantt] Rendering Gantt Chart. Tasks for Gantt:', JSON.parse(JSON.stringify(tasksData))); 
+        console.log('[Gantt] Today Date for Gantt (verified inside function):', todayData); // Slightly different message for clarity
+        console.log('[Gantt] Task Rows Container Element (verified inside function):', taskRowsContainerEl);
+
 
         timelineHeaderEl.innerHTML = '';
         taskRowsContainerEl.innerHTML = '';
@@ -73,8 +87,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         let taskVisibleCount = 0;
-        tasksData.forEach((task) => { // tasksData should now be properly formatted from app.py
-            if (!task.startDate) return; 
+        tasksData.forEach((task) => { 
+            console.log('[Gantt] Processing task:', JSON.parse(JSON.stringify(task)));
+            if (!task.startDate) {
+                console.log('[Gantt] Task skipped (no startDate):', task.id, task.name);
+                return; 
+            }
 
             const taskStartDate = new Date(task.startDate + 'T00:00:00');
             let taskEndDate;
@@ -101,17 +119,26 @@ document.addEventListener('DOMContentLoaded', function() {
             const startOffsetDays = (barActualStart - viewStartDate) / (1000 * 60 * 60 * 24);
             const durationDays = (barActualEnd - barActualStart) / (1000 * 60 * 60 * 24);
             
-            if (durationDays <= 0) return;
+            if (durationDays <= 0) {
+                console.log('[Gantt] Task skipped (duration <= 0 days in view):', task.id, task.name);
+                return;
+            }
 
             const taskBarDiv = document.createElement('div');
             taskBarDiv.className = 'gantt-task-bar';
             taskBarDiv.dataset.taskId = task.id;
-            taskBarDiv.style.left = `${startOffsetDays * pixelsPerDay}px`;
-            taskBarDiv.style.width = `${Math.max(1, durationDays * pixelsPerDay -1 )}px`; // Ensure at least 1px, and some gap
             
-            taskBarDiv.style.top = `${taskVisibleCount * taskRowHeight + taskBarTopMargin}px`;
+            const barLeft = startOffsetDays * pixelsPerDay;
+            const barWidth = Math.max(1, durationDays * pixelsPerDay -1 ); // -1 for a small gap, ensure min 1px
+            const barTop = taskVisibleCount * taskRowHeight + taskBarTopMargin;
+
+            taskBarDiv.style.left = `${barLeft}px`;
+            taskBarDiv.style.width = `${barWidth}px`;
+            taskBarDiv.style.top = `${barTop}px`;
+            // Height is set by CSS .gantt-task-bar { height: 20px; }
             
             taskBarDiv.textContent = task.name;
+            console.log(`[Gantt] Task: ${task.name}, ID: ${task.id}, StartDate: ${task.startDate}, EndDate (effective): ${taskEndDate.toISOString().split('T')[0]}, Bar Left: ${barLeft}px, Bar Width: ${barWidth}px, Bar Top: ${barTop}px`);
             taskBarDiv.title = `${task.name} (Start: ${task.startDate}, End: ${task.endDate || task.limitDate || 'N/A'})`;
 
             // Corrected Color coding logic
@@ -138,9 +165,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             taskRowsContainerEl.appendChild(taskBarDiv);
+            console.log('[Gantt] Appended task bar for:', task.name, taskBarDiv);
             taskVisibleCount++;
         });
-        taskRowsContainerEl.style.height = `${taskVisibleCount * taskRowHeight}px`;
+
+        if (taskVisibleCount === 0 && tasksData.length > 0) {
+            console.log('[Gantt] No tasks were eligible for rendering after filtering (e.g. no startDate, or outside view range).');
+            taskRowsContainerEl.innerHTML = '<p style="text-align:center; padding-top:20px;">No tasks with valid start dates within the current view range.</p>';
+        } else if (tasksData.length === 0) {
+             // This case is handled by the initial check at the end of the script.
+        }
+
+        taskRowsContainerEl.style.height = `${Math.max(taskVisibleCount * taskRowHeight, taskRowHeight)}px`; // Ensure min height for empty state message
     }
 
     if (ganttContainer) {
@@ -168,9 +204,42 @@ document.addEventListener('DOMContentLoaded', function() {
         }, { passive: false }); 
     }
 
+    // Initial Call Site Investigation & Logging
+    console.log('[GANTT_DEBUG] Checking conditions to call renderGanttChart().');
+    console.log('[GANTT_DEBUG] typeof tasksData:', typeof tasksData);
+    if (typeof tasksData !== 'undefined') {
+        console.log('[GANTT_DEBUG] tasksData defined. tasksData.length:', tasksData.length);
+        console.log('[GANTT_DEBUG] tasksData content at call site:', JSON.parse(JSON.stringify(tasksData)));
+    } else {
+        console.log('[GANTT_DEBUG] tasksData is undefined at call site.');
+    }
+    console.log('[GANTT_DEBUG] typeof todayData:', typeof todayData);
+     if (typeof todayData !== 'undefined') {
+        console.log('[GANTT_DEBUG] todayData content at call site:', todayData);
+    } else {
+        console.log('[GANTT_DEBUG] todayData is undefined at call site.');
+    }
+
+
     if (typeof tasksData !== 'undefined' && tasksData && tasksData.length > 0) {
+        console.log('[GANTT_DEBUG] Condition met: Calling renderGanttChart().');
         renderGanttChart();
     } else {
-        if(taskRowsContainerEl) taskRowsContainerEl.innerHTML = '<p style="text-align:center; padding-top:20px;">No tasks with start dates to display in Gantt chart.</p>';
+        console.warn('[GANTT_DEBUG] Condition NOT met: renderGanttChart() will NOT be called.');
+        if (typeof tasksData === 'undefined') {
+            console.warn('[GANTT_DEBUG] Reason: tasksData is undefined.');
+        } else if (!tasksData) { // Should be caught by undefined, but for robustness
+            console.warn('[GANTT_DEBUG] Reason: tasksData is null or otherwise falsy (but not undefined).');
+        } else if (tasksData.length === 0) {
+            console.warn('[GANTT_DEBUG] Reason: tasksData is empty (length 0).');
+        } else {
+            console.warn('[GANTT_DEBUG] Reason: Unknown, tasksData might not be an array or length property is missing/invalid.');
+        }
+        
+        if(taskRowsContainerEl) {
+            taskRowsContainerEl.innerHTML = '<p style="text-align:center; padding-top:20px;">No tasks with start dates to display in Gantt chart (initial check failed).</p>';
+        } else {
+            console.error('[GANTT_DEBUG] taskRowsContainerEl not found for displaying initial message.');
+        }
     }
 });
