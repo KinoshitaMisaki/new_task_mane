@@ -44,40 +44,149 @@
     border-left: 5px solid #4CAF50; /* Green */
 }
 
-#gantt-chart-area {
-    margin-top: 20px;
-    border: 1px solid #ccc;
-    padding: 10px;
-    /* Basic height and overflow for now */
-    min-height: 100px; 
+/* Main Layout Styling */
+#main-container {
+    display: flex;
+    width: 100%;
+    /* gap: 10px; */ /* Optional gap */
 }
-.gantt-chart-header {
-    /* Styles for date headers - to be implemented */
-    padding-bottom: 5px;
-    border-bottom: 1px solid #eee;
+
+/* Calendar View Styles */
+#task-list-area {
+    flex: 0 0 40%;
+    /* max-width: 40%; */
+    overflow-y: auto; 
+    /* Consider height: calc(100vh - ...); if needed */
+    padding: 10px; 
+    box-sizing: border-box;
+}
+.task-calendar-header {
+    display: flex;
+    justify-content: space-around;
+    background-color: #f4f4f4;
+    padding: 5px 0;
+    border-bottom: 1px solid #ddd;
+}
+.calendar-day-header {
+    flex: 1; /* Equal width for each header cell */
+    text-align: center;
+    padding: 5px;
+    font-size: 0.9em;
+    font-weight: bold;
+}
+.task-calendar-body {
+    display: flex; /* Arrange day columns horizontally */
+    justify-content: space-around; /* Distribute space between columns */
+    min-height: 200px; /* Minimum height for the calendar body */
+    background-color: #f9f9f9;
+}
+.calendar-day-column {
+    flex: 1; /* Each column takes equal width */
+    border-left: 1px solid #eee;
+    padding: 8px;
+    min-height: 150px; /* Min height for visibility of drop zones */
+    /* background-color: #fff; */ /* Optional different bg for columns */
+}
+.calendar-day-column:first-child {
+    border-left: none;
+}
+/* .task-card adjustments for calendar view if needed */
+.calendar-day-column .task-card { 
+    margin-bottom: 8px; /* Spacing between cards in a column */
+    padding: 8px; 
+    font-size: 0.95em;
+}
+.calendar-day-column .task-card h3 {
+   font-size: 1.1em;
+   margin-bottom: 4px;
+}
+.task-card-period { /* New class for period display in calendar card */
+   font-size: 0.8em;
+   color: #555;
+}
+.visually-hidden { /* For screen readers or debug, not visual */
+   position: absolute;
+   width: 1px;
+   height: 1px;
+   margin: -1px;
+   padding: 0;
+   overflow: hidden;
+   clip: rect(0, 0, 0, 0);
+   border: 0;
+}
+#other-tasks-list {
+   margin-top: 15px;
+   padding: 10px;
+   background-color: #efefef;
+   border-top: 1px solid #ddd;
+}
+#other-tasks-list .task-card { /* Simpler card for this list */
+   padding: 5px;
+   font-size: 0.9em;
+   margin-bottom: 5px;
+}
+
+
+#gantt-chart-area {
+    flex: 0 0 60%;
+    /* max-width: 60%; */
+    overflow-y: auto; /* Important for sticky header behavior if content overflows */
+    /* Consider height: calc(100vh - ...); if needed */
+    /* padding: 0; /* Padding is handled by children or not needed */
+    box-sizing: border-box;
+    /* Existing styles: margin-top, border, overflow-x, position: relative */
+    margin-top: 0; /* Adjusted from 20px to align with flexbox layout */
+    border: 1px solid #ccc; /* Keep border */
+    overflow-x: auto; /* Keep horizontal scroll */
+    position: relative; /* Keep relative positioning */
+}
+.gantt-chart-header-container {
+   position: sticky; /* Make header sticky */
+   top: 0;
+   background-color: white; /* Or theme background */
+   z-index: 10;
+   display: flex; /* Will be populated by JS */
+   border-bottom: 1px solid #ccc;
+}
+.gantt-header-cell {
+    box-sizing: border-box;
+    text-align: center;
+    border-right: 1px solid #eee;
+    font-size: 10px;
+    padding: 5px 0;
+    white-space: nowrap;
+}
+.gantt-header-cell:last-child {
+    border-right: none;
 }
 .gantt-chart-rows {
-    position: relative; /* For future absolute positioning of bars if needed */
+    position: relative; /* For absolute positioning of task bars if needed per row */
+    /* Width will be set by JS based on timeline */
 }
 .gantt-task-row {
-    margin-bottom: 5px;
-    /* Each row will contain one bar for now */
+    /* Each row itself doesn't need much if bars are positioned absolutely within .gantt-chart-rows
+       OR if bars are relative to the row, then row needs position:relative and a defined height.
+       Let's assume bars will be positioned relative to their row for simplicity of collision. */
+    position: relative;
+    height: 30px; /* Height of a single task track */
+    border-bottom: 1px solid #f0f0f0;
 }
 .gantt-task-bar {
-    /* Common styling for all bars */
-    color: white;
-    padding: 3px 8px; /* Smaller padding for compact look */
-    border-radius: 3px;
-    height: 25px; 
-    line-height: 25px; /* Center text vertically */
-    font-size: 12px;
+    position: absolute; /* Positioned relative to .gantt-task-row */
+    /* background-color, color, border-radius, etc. are already defined */
+    height: 20px; /* Bar height */
+    top: 50%;
+    transform: translateY(-50%); /* Vertically center bar in the row */
+    /* width and left will be set by JS */
+    font-size: 10px; /* Smaller font for compact bars */
+    line-height: 20px; /* Match height */
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    width: 200px; /* Default fixed width for now, actual width by date later */
-    /* Add box-shadow or other visual cues if desired */
+    box-sizing: border-box; /* Include padding/border in width/height */
+    padding: 0 5px; /* Horizontal padding inside the bar */
 }
-/* Color coding for Gantt bars - should match task cards */
+/* Color coding for Gantt bars - should match task cards (existing styles below are fine) */
 .gantt-task-bar.overdue {
     background-color: #f44336; /* Red */
 }
@@ -129,6 +238,64 @@
 #detail-edit-task-form button {
     margin-right: 5px;
     padding: 8px 12px;
+    cursor: pointer;
+}
+
+/* Flatpickr input styling */
+.flatpickr-input { 
+    width: calc(100% - 16px); 
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box; 
+    background-color: white; 
+}
+
+/* Basic Responsiveness */
+@media (max-width: 768px) { /* Adjust breakpoint as needed */
+    #main-container {
+        flex-direction: column;
+    }
+
+    #task-list-area,
+    #gantt-chart-area {
+        flex-basis: auto; /* Reset flex-basis */
+        width: 100%;    /* Take full width when stacked */
+        max-width: 100%; /* Ensure it doesn't exceed screen */
+    }
+
+    #task-list-area {
+        margin-bottom: 15px; /* Add some space when stacked */
+        /* max-height: 50vh; /* Example: limit height on mobile */
+    }
+    #gantt-chart-area {
+        /* min-height: 300px; /* Ensure it's usable */
+        margin-top: 0; /* Reset margin-top if it was set for desktop */
+    }
+}
+
+#deleted-tasks-section {
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid #eee;
+    background-color: #fff8f8; /* Light reddish background to distinguish */
+}
+#deleted-tasks-list {
+    list-style-type: none;
+    padding-left: 0;
+}
+.deleted-task-item {
+    padding: 8px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.deleted-task-item:last-child {
+    border-bottom: none;
+}
+.restore-deleted-task-btn { /* Can share class with .restore-task-btn if styled identically */
+    padding: 5px 10px;
     cursor: pointer;
 }
 

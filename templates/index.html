@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Task Management App</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -13,37 +14,102 @@
 
     <button id="add-new-task-btn">Add New Task</button>
 
+    <div id="view-controls" style="margin-bottom: 15px; padding: 10px; background-color: #f0f0f0;">
+        <label for="sort-by-select">Sort active tasks by: </label>
+        <select id="sort-by-select">
+            <option value="orderIndex" {% if current_sort_by == 'orderIndex' %}selected{% endif %}>Default Order</option>
+            <option value="limitDate_asc" {% if current_sort_by == 'limitDate_asc' %}selected{% endif %}>Limit Date (Ascending)</option>
+            <option value="limitDate_desc" {% if current_sort_by == 'limitDate_desc' %}selected{% endif %}>Limit Date (Descending)</option>
+        </select>
+    </div>
+
     <div id="main-container">
         <div id="task-list-area">
-            <h2>Active Tasks</h2>
-            {% if tasks %}
-                {% for task in tasks %}
-                    {% set is_overdue = task.limitDate and task.limitDate < today %}
-                    {% set is_due_soon = task.limitDate and today < task.limitDate and task.limitDate <= today + timedelta(days=7) %}
-                    {% set card_class = 'overdue' if is_overdue else 'due-soon' if is_due_soon else 'default-color' %}
-                    
-                    <div class="task-card {{ card_class }}" data-task-id="{{ task.id }}">
-                        <h3>{{ task.name }}</h3>
-                        <p>Limit: {{ task.limitDate.strftime('%Y-%m-%d') if task.limitDate else 'N/A' }}</p>
-                        <p>Period: {{ task.period if task.period else 'N/A' }}</p>
-                        <p>Status: {{ task.status }}</p>
-                        <!-- More details can be added later -->
+            <h2>Task List - Week View</h2>
+            <div class="task-calendar-header">
+                {% for i in range(7) %}
+                    {% set current_day_in_loop = today + timedelta(days=i) %}
+                    <div class="calendar-day-header">
+                        {{ current_day_in_loop.strftime("%a") }} <br> <!-- e.g., Mon -->
+                        {{ current_day_in_loop.strftime("%d %b") }} <!-- e.g., 17 Jun -->
                     </div>
                 {% endfor %}
-            {% else %}
-                <p>No active tasks found.</p>
-            {% endif %}
+            </div>
+            <div class="task-calendar-body">
+                {% for i in range(7) %}
+                    {% set current_day_in_loop = today + timedelta(days=i) %}
+                    <div class="calendar-day-column" data-date="{{ current_day_in_loop.isoformat() }}">
+                        <p class="column-date-label visually-hidden">{{ current_day_in_loop.isoformat() }}</p> {# For JS, if needed #}
+                        {% for task in tasks %} {# Iterate all active tasks #}
+                            {% if task.limitDate and task.limitDate == current_day_in_loop %}
+                                {# Task Card Rendering Logic - Copied and adapted from previous simple list #}
+                                {% set today_obj = today %}
+                                {% set limit_date_obj = task.limitDate %}
+                                {% set start_date_obj = task.startDate %}
+                                {% set end_date_obj = task.endDate %}
+
+                                {% set card_class = '' %}
+                                {% if start_date_obj and (not end_date_obj or end_date_obj > today_obj) %}
+                                    {% set card_class = 'started' %}
+                                {% elif limit_date_obj and limit_date_obj < today_obj %}
+                                    {% set card_class = 'overdue' %}
+                                {% elif limit_date_obj and today_obj < limit_date_obj and limit_date_obj <= (today_obj + timedelta(days=7)) %}
+                                    {% set card_class = 'due-soon' %}
+                                {% else %}
+                                    {% set card_class = 'default-color' %}
+                                {% endif %}
+                                
+                                <div class="task-card {{ card_class }}" data-task-id="{{ task.id }}" draggable="true"> <!-- Add draggable attribute here -->
+                                    <h3>{{ task.name }}</h3>
+                                    <p class="task-card-period">{{ task.period if task.period else 'N/A' }}</p>
+                                    <!-- Removed other details like limitDate, status, start/end from card for brevity in calendar cell -->
+                                    <!-- These are visible in detail pop-up -->
+                                </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            </div>
+            {# Optional: A section for tasks with no limitDate or limitDate outside this week view #}
+            <div id="other-tasks-list">
+                <h4>Other Active Tasks (No Limit Date / Outside Week View)</h4>
+                {% for task in tasks %}
+                    {% set current_day_start_of_week = today %}
+                    {% set current_day_end_of_week = today + timedelta(days=6) %}
+                    {% if not task.limitDate or (task.limitDate < current_day_start_of_week.isoformat()) or (task.limitDate > current_day_end_of_week.isoformat()) %}
+                        {# Render a simpler task item or a compact card #}
+                         {% set today_obj = today %}
+                            {% set limit_date_obj = task.limitDate %}
+                            {% set start_date_obj = task.startDate %} {# This is a string from to_dict #}
+                            {% set end_date_obj = task.endDate %}   {# This is a string from to_dict #}
+                            {% set limit_date_str = task.limitDate %} {# This is a string from to_dict #}
+                            {% set today_str = today.isoformat() %} {# today is a date object, convert to string #}
+                            {% set seven_days_from_today_str = (today + timedelta(days=7)).isoformat() %}
+
+                            {% set card_class = '' %}
+                            {% if start_date_obj and (not end_date_obj or end_date_obj > today_str) %}
+                                {% set card_class = 'started' %}
+                            {% elif limit_date_str and limit_date_str < today_str %}
+                                {% set card_class = 'overdue' %}
+                            {% elif limit_date_str and today_str < limit_date_str and limit_date_str <= seven_days_from_today_str %}
+                                {% set card_class = 'due-soon' %}
+                            {% else %}
+                                {% set card_class = 'default-color' %}
+                            {% endif %}
+                        <div class="task-card {{ card_class }}" data-task-id="{{ task.id }}" draggable="true">
+                            <strong>{{ task.name }}</strong>
+                            {% if task.limitDate %} (Limit: {{ task.limitDate }}) {% endif %}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
         </div>
         <div id="gantt-chart-area">
-            <!-- Gantt chart will go here -->
-            <h2>Gantt Chart</h2>
-            <div class="gantt-chart-header">
-                <!-- Date headers will be dynamically generated by JS later -->
-                <p>(Timeline headers will appear here)</p>
+            <div class="gantt-chart-header-container">
+                <!-- JS will populate this with date/week/month cells -->
             </div>
             <div class="gantt-chart-rows">
-                <!-- Task bars will be dynamically generated by JS -->
-                <p class="gantt-placeholder">Gantt chart tasks will appear here.</p>
+                <!-- JS will populate this with task rows and bars -->
             </div>
         </div>
     </div>
@@ -66,7 +132,18 @@
 
     <div id="deleted-tasks-section">
         <h2>Deleted Tasks</h2>
-        <!-- Deleted tasks will go here -->
+        {% if deleted_tasks %}
+            <ul id="deleted-tasks-list">
+                {% for task in deleted_tasks %}
+                    <li class="deleted-task-item" data-task-id="{{ task.id }}">
+                        <span>{{ task.name }} (Reason: {{ task.reasonForDelete if task.reasonForDelete else 'N/A' }})</span>
+                        <button class="restore-deleted-task-btn" data-task-id="{{ task.id }}">Restore</button>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No tasks have been deleted.</p>
+        {% endif %}
     </div>
 
     <div id="add-task-modal" class="modal hidden">
@@ -113,6 +190,12 @@
                     <textarea id="edit-task-detail" name="detail"></textarea>
                 </div>
                 <div>
+                    <p><strong>Start Date:</strong> <span id="display-task-startDate">N/A</span></p>
+                </div>
+                <div>
+                    <p><strong>End Date:</strong> <span id="display-task-endDate">N/A</span></p>
+                </div>
+                <div>
                     <label for="edit-task-limit-date">Limit Date:</label>
                     <input type="date" id="edit-task-limit-date" name="limitDate">
                 </div>
@@ -145,6 +228,8 @@
         // so date calculations needing it will be done in JS or by passing specific offsets.
         // For due-soon, we need today + 7 days.
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 
     <div id="delete-confirm-modal" class="modal hidden">

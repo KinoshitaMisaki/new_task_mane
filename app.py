@@ -1,7 +1,8 @@
 import os
 from flask import Flask, render_template, request, jsonify
-from .models import db, Task
+from models import db, Task # db is SQLAlchemy instance
 from datetime import datetime, date, timedelta
+from sqlalchemy import nullslast, nullsfirst # Explicitly import for clarity
 
 app = Flask(__name__)
 
@@ -16,10 +17,35 @@ with app.app_context():
 
 @app.route('/')
 def index():
-    active_tasks = Task.query.filter_by(status='active').order_by(Task.orderIndex.asc()).all()
-    ended_tasks = Task.query.filter_by(status='ended').order_by(Task.updatedAt.desc()).all()
+    current_sort_by = request.args.get('sort_by', 'orderIndex')
+    order_criteria = []
+
+    if current_sort_by == 'limitDate_asc':
+        order_criteria = [Task.limitDate.asc().nullslast(), Task.orderIndex.asc()]
+    elif current_sort_by == 'limitDate_desc':
+        order_criteria = [Task.limitDate.desc().nullslast(), Task.orderIndex.asc()]
+    else: # Default to 'orderIndex' or any other case
+        current_sort_by = 'orderIndex' # Ensure it's set for the template
+        order_criteria = [Task.orderIndex.asc()]
+
+    active_tasks_query = Task.query.filter_by(status='active').order_by(*order_criteria).all()
+    active_tasks_dicts = [task.to_dict() for task in active_tasks_query]
+    
+    ended_tasks_query = Task.query.filter_by(status='ended').order_by(Task.updatedAt.desc()).all()
+    ended_tasks_dicts = [task.to_dict() for task in ended_tasks_query]
+
+    deleted_tasks_query = Task.query.filter_by(status='deleted').order_by(Task.updatedAt.desc()).all()
+    deleted_tasks_dicts = [task.to_dict() for task in deleted_tasks_query]
+    
     today = date.today()
-    return render_template('index.html', tasks=active_tasks, ended_tasks=ended_tasks, today=today, timedelta=timedelta)
+    
+    return render_template('index.html', 
+                           tasks=active_tasks_dicts, 
+                           ended_tasks=ended_tasks_dicts, 
+                           deleted_tasks=deleted_tasks_dicts, 
+                           today=today, 
+                           timedelta=timedelta,
+                           current_sort_by=current_sort_by)
 
 @app.route('/api/tasks', methods=['POST'])
 def create_task():
@@ -185,6 +211,50 @@ def delete_task_confirm(task_id):
         db.session.rollback()
         # Log the error e for debugging if necessary
         return jsonify({'error': 'Failed to delete task', 'details': str(e)}), 500
+
+@app.route('/api/tasks/<int:task_id>/restore_deleted', methods=['POST'])
+def restore_deleted_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    try:
+        task.status = 'active'
+        task.reasonForDelete = None
+        # task.updatedAt will be handled by onupdate
+        db.session.commit()
+        return jsonify(task.to_dict()), 200
+    except Exception as e:
+        db.session.rollback()
+        # Log the error e for debugging if necessary
+        return jsonify({'error': 'Failed to restore deleted task', 'details': str(e)}), 500
+
+@app.route('/api/tasks/update_order', methods=['POST'])
+def update_task_order_route(): # Renamed to avoid conflict with any model methods
+    data = request.get_json()
+    if not data or 'task_ids_in_order' not in data:
+        return jsonify({'error': 'Missing task_ids_in_order'}), 400
+
+    task_ids_in_order = data['task_ids_in_order']
+    if not isinstance(task_ids_in_order, list):
+        return jsonify({'error': 'task_ids_in_order must be a list'}), 400
+
+    try:
+        for index, task_id_str in enumerate(task_ids_in_order):
+            task_id = int(task_id_str)
+            task = Task.query.get(task_id)
+            if task:
+                task.orderIndex = index * 10 # Assign order, leaving gaps
+            else:
+                # Handle case where a task ID might be invalid (e.g., already deleted by another user)
+                # Options: skip, or return an error. For now, skip.
+                print(f"Task with ID {task_id} not found during reorder.") 
+        db.session.commit()
+        return jsonify({'message': 'Task order updated successfully'}), 200
+    except ValueError:
+        db.session.rollback()
+        return jsonify({'error': 'Invalid task ID format.'}), 400
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating task order: {e}") # Log the error server-side
+        return jsonify({'error': 'Failed to update task order.', 'details': str(e)}), 500
 
 
 if __name__ == '__main__':
