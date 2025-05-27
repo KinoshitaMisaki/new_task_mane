@@ -1,0 +1,43 @@
+<form id="detailEditForm" method="POST">
+    <input type="hidden" name="taskId" id="detailTaskId">
+    
+    <div>
+        <label for="detailName">Name (タスク名):</label>
+        <input type="text" name="name" id="detailName" required>
+    </div>
+    <div>
+        <label for="detailLimitDate">Limit date (期限日):</label>
+        <input type="date" name="limitDate" id="detailLimitDate">
+    </div>
+    <div>
+        <label for="detailText">Detail (詳細):</label>
+        <textarea name="detail" id="detailText" rows="3"></textarea>
+    </div>
+    <div>
+        <input type="checkbox" name="notMain" id="detailNotMain">
+        <label for="detailNotMain">[not Main]</label>
+    </div>
+
+    <hr>
+    <p>Status Information:</p>
+    <div>
+        <p>Current Status: <span id="detailCurrentStatus">N/A</span></p>
+        <p>Start Date: <span id="detailStartDateDisplay">N/A</span></p>
+        <p>End Date: <span id="detailEndDateDisplay">N/A</span></p>
+    </div>
+
+    <hr>
+    <p>Actions:</p>
+    <div>
+        <button type="button" id="detailStartButton">Start</button>
+        <button type="button" id="detailEndButton">End</button>
+        <button type="button" id="detailDeleteButton">Delete</button>
+    </div>
+
+    <hr>
+    <p>Operations:</p>
+    <div>
+        <button type="submit" id="detailSaveButton">Save</button>
+        <button type="button" id="detailCancelButton">Cancel</button>
+    </div>
+</form>

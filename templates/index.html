@@ -6,114 +6,73 @@
     <title>Task Management App</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/gantt.css') }}"> <!-- Gantt CSS -->
 </head>
 <body>
     <header>
         <h1>Task Management App</h1>
     </header>
 
-    <button id="add-new-task-btn">Add New Task</button>
+    <button id="add-new-task-btn">Add New Task (Existing API-based)</button>
+    <button id="showAddTaskPopup">Add New Task (Subtask - Form POST)</button>
+    <div id="popupContainer" style="border: 1px solid #ccc; padding: 10px; margin-top: 10px; display: none;"></div>
 
-    <div id="view-controls" style="margin-bottom: 15px; padding: 10px; background-color: #f0f0f0;">
-        <label for="sort-by-select">Sort active tasks by: </label>
-        <select id="sort-by-select">
-            <option value="orderIndex" {% if current_sort_by == 'orderIndex' %}selected{% endif %}>Default Order</option>
-            <option value="limitDate_asc" {% if current_sort_by == 'limitDate_asc' %}selected{% endif %}>Limit Date (Ascending)</option>
-            <option value="limitDate_desc" {% if current_sort_by == 'limitDate_desc' %}selected{% endif %}>Limit Date (Descending)</option>
-        </select>
+    <!-- Header Elements -->
+    <div style="padding: 10px; background-color: #f0f0f0; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+        <h3>Current Week: <span id="currentWeekDisplay">-</span></h3>
+        <div>
+            <button id="sortByLimit" style="margin-right: 10px;">Sort by Limit</button>
+            <!-- Existing sort dropdown, can be kept or removed based on how sortByLimit will work -->
+            <label for="sort-by-select">Sort active tasks by: </label>
+            <select id="sort-by-select">
+                <option value="createdAt_desc" {% if current_sort_by == 'createdAt_desc' %}selected{% endif %}>Creation Date (Newest First)</option>
+                <option value="orderIndex" {% if current_sort_by == 'orderIndex' %}selected{% endif %}>Default Order</option>
+                <option value="limitDate_asc" {% if current_sort_by == 'limitDate_asc' %}selected{% endif %}>Limit Date (Ascending)</option>
+                <option value="limitDate_desc" {% if current_sort_by == 'limitDate_desc' %}selected{% endif %}>Limit Date (Descending)</option>
+            </select>
+        </div>
     </div>
 
-    <div id="main-container">
-        <div id="task-list-area">
-            <h2>Task List - Week View</h2>
-            <div class="task-calendar-header">
-                {% for i in range(7) %}
-                    {% set current_day_in_loop = today + timedelta(days=i) %}
-                    <div class="calendar-day-header">
-                        {{ current_day_in_loop.strftime("%a") }} <br> <!-- e.g., Mon -->
-                        {{ current_day_in_loop.strftime("%d %b") }} <!-- e.g., 17 Jun -->
-                    </div>
-                {% endfor %}
+    <!-- Main Layout -->
+    <div class="main-container" style="display: flex; width: 100%;">
+        <div id="taskListArea" style="width: 40%; border: 1px solid #ccc; padding: 10px; overflow-y: auto; height: 80vh;">
+            <h2>Task List</h2>
+            <div id="sortableTaskList">
+            <!-- Task cards will go here -->
+            {% for task in tasks %}
+            <div class="task-card" data-task-id="{{ task.id }}" style="border: 1px solid black; margin-bottom: 5px; padding: 5px; border-radius: 5px; cursor: grab;">
+                <h4>{{ task.name }}</h4>
+                <p>Limit: {{ task.limitDate.strftime('%Y-%m-%d') if task.limitDate else 'N/A' }}</p>
+                <p>Period: {{ task.period if task.period else 'N/A' }}</p>
+                <!-- Basic color coding - using 'today' variable passed from Flask -->
+                {% if task.limitDate and task.limitDate < today %}
+                    <p style="color: red;">Status: Overdue</p>
+                {% elif task.startDate and (not task.endDate or task.endDate > today) %}
+                    <p style="color: orange;">Status: Started</p>
+                {% else %}
+                    <p style="color: green;">Status: Normal</p>
+                {% endif %}
             </div>
-            <div class="task-calendar-body">
-                {% for i in range(7) %}
-                    {% set current_day_in_loop = today + timedelta(days=i) %}
-                    <div class="calendar-day-column" data-date="{{ current_day_in_loop.isoformat() }}">
-                        <p class="column-date-label visually-hidden">{{ current_day_in_loop.isoformat() }}</p> {# For JS, if needed #}
-                        {% for task in tasks %} {# Iterate all active tasks #}
-                            {% if task.limitDate and task.limitDate == current_day_in_loop %}
-                                {# Task Card Rendering Logic - Copied and adapted from previous simple list #}
-                                {% set today_obj = today %}
-                                {% set limit_date_obj = task.limitDate %}
-                                {% set start_date_obj = task.startDate %}
-                                {% set end_date_obj = task.endDate %}
-
-                                {% set card_class = '' %}
-                                {% if start_date_obj and (not end_date_obj or end_date_obj > today_obj) %}
-                                    {% set card_class = 'started' %}
-                                {% elif limit_date_obj and limit_date_obj < today_obj %}
-                                    {% set card_class = 'overdue' %}
-                                {% elif limit_date_obj and today_obj < limit_date_obj and limit_date_obj <= (today_obj + timedelta(days=7)) %}
-                                    {% set card_class = 'due-soon' %}
-                                {% else %}
-                                    {% set card_class = 'default-color' %}
-                                {% endif %}
-                                
-                                <div class="task-card {{ card_class }}" data-task-id="{{ task.id }}" draggable="true"> <!-- Add draggable attribute here -->
-                                    <h3>{{ task.name }}</h3>
-                                    <p class="task-card-period">{{ task.period if task.period else 'N/A' }}</p>
-                                    <!-- Removed other details like limitDate, status, start/end from card for brevity in calendar cell -->
-                                    <!-- These are visible in detail pop-up -->
-                                </div>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
-                {% endfor %}
-            </div>
-            {# Optional: A section for tasks with no limitDate or limitDate outside this week view #}
-            <div id="other-tasks-list">
-                <h4>Other Active Tasks (No Limit Date / Outside Week View)</h4>
-                {% for task in tasks %}
-                    {% set current_day_start_of_week = today %}
-                    {% set current_day_end_of_week = today + timedelta(days=6) %}
-                    {% if not task.limitDate or (task.limitDate < current_day_start_of_week.isoformat()) or (task.limitDate > current_day_end_of_week.isoformat()) %}
-                        {# Render a simpler task item or a compact card #}
-                         {% set today_obj = today %}
-                            {% set limit_date_obj = task.limitDate %}
-                            {% set start_date_obj = task.startDate %} {# This is a string from to_dict #}
-                            {% set end_date_obj = task.endDate %}   {# This is a string from to_dict #}
-                            {% set limit_date_str = task.limitDate %} {# This is a string from to_dict #}
-                            {% set today_str = today.isoformat() %} {# today is a date object, convert to string #}
-                            {% set seven_days_from_today_str = (today + timedelta(days=7)).isoformat() %}
-
-                            {% set card_class = '' %}
-                            {% if start_date_obj and (not end_date_obj or end_date_obj > today_str) %}
-                                {% set card_class = 'started' %}
-                            {% elif limit_date_str and limit_date_str < today_str %}
-                                {% set card_class = 'overdue' %}
-                            {% elif limit_date_str and today_str < limit_date_str and limit_date_str <= seven_days_from_today_str %}
-                                {% set card_class = 'due-soon' %}
-                            {% else %}
-                                {% set card_class = 'default-color' %}
-                            {% endif %}
-                        <div class="task-card {{ card_class }}" data-task-id="{{ task.id }}" draggable="true">
-                            <strong>{{ task.name }}</strong>
-                            {% if task.limitDate %} (Limit: {{ task.limitDate }}) {% endif %}
-                        </div>
-                    {% endif %}
-                {% endfor %}
-            </div>
+            {% endfor %}
+            {% if not tasks %}
+            <p>No active tasks.</p>
+            {% endif %}
+            </div> <!-- Closing sortableTaskList -->
         </div>
-        <div id="gantt-chart-area">
-            <div class="gantt-chart-header-container">
-                <!-- JS will populate this with date/week/month cells -->
-            </div>
-            <div class="gantt-chart-rows">
-                <!-- JS will populate this with task rows and bars -->
+        <div id="ganttChartArea" style="width: 60%; border: 1px solid #ccc; padding: 10px; height: 80vh; display: flex; flex-direction: column;">
+            <h2>Gantt Chart</h2>
+            <div id="ganttContainer" style="position: relative; width: 100%; flex-grow: 1; overflow-x: auto; overflow-y: hidden;">
+                <div id="ganttTimelineHeader" style="position: sticky; top: 0; z-index: 2; background-color: white;">
+                    <!-- Timeline header (months/weeks/days) will be generated here by JavaScript -->
+                </div>
+                <div id="ganttTaskRowsContainer" style="position: relative;">
+                    <!-- Task bars will be generated here by JavaScript -->
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- Ended tasks and Deleted tasks sections will remain as they are, already more advanced than placeholders -->
     <div id="ended-tasks-section">
         <h2>Ended Tasks</h2>
         {% if ended_tasks %}
@@ -222,15 +181,86 @@
     </div>
 
     <script>
-        var tasksData = {{ tasks|tojson|safe if tasks else '[]' }};
+        var tasksData = {{ tasks_for_gantt_json|safe if tasks_for_gantt_json else '[]' }};
         var todayData = "{{ today.isoformat() }}";
         // timedelta is not directly passable as a simple JSON object easily,
         // so date calculations needing it will be done in JS or by passing specific offsets.
         // For due-soon, we need today + 7 days.
     </script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script> --> <!-- Already present -->
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script> <!-- SortableJS CDN -->
+    <script src="{{ url_for('static', filename='js/gantt.js') }}"></script> <!-- Gantt JS -->
+
+    <script>
+        // JavaScript for the subtask "Add Task" functionality (form-based POST)
+        document.getElementById('showAddTaskPopup').addEventListener('click', function() {
+            const popupContainer = document.getElementById('popupContainer');
+            if (popupContainer.style.display === 'none' || popupContainer.innerHTML === '') {
+                // Fetch the content of add_task_popup.html and display it
+                // For this example, we'll directly use the known structure of add_task_popup.html
+                // In a real scenario with a separate route for the popup's HTML:
+                // fetch("{{ url_for('get_add_task_form_html') }}") // Assuming a route that returns the popup HTML
+                //   .then(response => response.text())
+                //   .then(html => {
+                //       popupContainer.innerHTML = html;
+                //       popupContainer.style.display = 'block';
+                //       // Add event listener for the new cancel button if it's part of the fetched HTML
+                //       const cancelBtn = document.getElementById('cancelAddTask');
+                //       if (cancelBtn) {
+                //           cancelBtn.addEventListener('click', () => {
+                //               popupContainer.style.display = 'none';
+                //               popupContainer.innerHTML = '';
+                //           });
+                //       }
+                //   })
+                //   .catch(error => console.error('Error fetching add_task_popup.html:', error));
+
+                // Since add_task_popup.html is simple and its content known,
+                // and we don't have a route to serve its raw HTML, we'll embed its structure here.
+                // This is a workaround due to tool limitations / not wanting to create another Flask route just to serve HTML.
+                // The ideal way is to fetch it if it were served by a route.
+                popupContainer.innerHTML = `
+                    <form action="{{ url_for('add_task') }}" method="POST">
+                        <div>
+                            <label for="name">Name (タスク名):</label>
+                            <input type="text" id="name" name="name" required>
+                        </div>
+                        <div>
+                            <label for="detail">Detail (詳細):</label>
+                            <textarea id="detail" name="detail"></textarea>
+                        </div>
+                        <div>
+                            <label for="limitDate">Limit (期限):</label>
+                            <input type="date" id="limitDate" name="limitDate">
+                        </div>
+                        <div>
+                            <input type="checkbox" id="notMain" name="notMain">
+                            <label for="notMain">[not Main]</label>
+                        </div>
+                        <div>
+                            <button type="submit">Make (作成)</button>
+                            <button type="button" id="cancelAddTaskInjected">Cancel (キャンセル)</button>
+                        </div>
+                    </form>
+                `;
+                popupContainer.style.display = 'block';
+                
+                const cancelInjectedBtn = document.getElementById('cancelAddTaskInjected');
+                if (cancelInjectedBtn) {
+                    cancelInjectedBtn.addEventListener('click', () => {
+                        popupContainer.style.display = 'none';
+                        popupContainer.innerHTML = '';
+                    });
+                }
+
+            } else {
+                popupContainer.style.display = 'none';
+                popupContainer.innerHTML = '';
+            }
+        });
+    </script>
 
     <div id="delete-confirm-modal" class="modal hidden">
         <div class="modal-content">
@@ -244,6 +274,16 @@
             <button type="button" id="confirm-delete-btn">Yes, Delete</button>
             <button type="button" id="cancel-delete-confirm-btn">Cancel</button>
         </div>
+    </div>
+
+    <!-- Container for the new detail/edit popup, as per subtask -->
+    <div id="detailPopupContainer" style="display:none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: white; padding: 20px; border: 1px solid #ccc; z-index: 1001; box-shadow: 0 0 10px rgba(0,0,0,0.2);">
+        <!-- Content from templates/detail_edit_popup.html will be loaded here by JavaScript -->
+    </div>
+
+    <!-- Container for the new delete confirmation popup -->
+    <div id="deleteConfirmPopupContainer" style="display:none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: white; padding: 20px; border: 1px solid #ccc; z-index: 1002; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
+        <!-- Content from templates/delete_confirm_popup.html will be loaded here -->
     </div>
 </body>
 </html>

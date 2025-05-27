@@ -1,0 +1,72 @@
+/* Gantt chart specific CSS will go here */
+.gantt-container {
+    position: relative;
+    width: 100%;
+    height: 500px; /* Default height, can be adjusted */
+    overflow-x: auto;
+    overflow-y: hidden; /* As per plan */
+    border: 1px solid #ccc;
+}
+
+.gantt-timeline-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    background-color: #f4f4f4;
+    border-bottom: 1px solid #ccc;
+    height: 40px; /* Height for month/week markers */
+}
+
+.gantt-header-marker {
+    box-sizing: border-box;
+    border-right: 1px solid #ddd;
+    text-align: center;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+.gantt-task-rows-container {
+    position: relative;
+    /* Height will be set by JS based on number of tasks */
+}
+
+.gantt-task-row {
+    position: relative; /* Needed if bars are absolute within this, or use for layout */
+    height: 30px; /* Height of a single task row area */
+    box-sizing: border-box;
+    border-bottom: 1px solid #eee;
+}
+
+.gantt-task-bar {
+    position: absolute;
+    height: 20px; /* Height of the task bar itself */
+    top: 5px; /* Center it within the 30px row height */
+    background-color: #4CAF50; /* Default green */
+    border-radius: 3px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+    color: white;
+    font-size: 12px;
+    padding: 0 5px;
+    line-height: 20px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
+    cursor: pointer;
+}
+
+/* Color classes based on task status/dates */
+.gantt-bar-red { background-color: #F44336; } /* Overdue */
+.gantt-bar-purple { background-color: #9C27B0; } /* Due soon (purple as per subtask, was orange) */
+.gantt-bar-orange { background-color: #FF9800; } /* Started (orange, as per subtask) */
+.gantt-bar-green { background-color: #4CAF50; } /* Default active / Normal */
+.gantt-bar-grey { background-color: #9E9E9E; } /* Default if no specific status */
+
+/* Ensure row hover or selection doesn't conflict if added later */
+.gantt-task-row:hover {
+    background-color: #f9f9f9;
+}

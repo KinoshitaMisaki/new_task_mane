@@ -1,0 +1,24 @@
+<form action="{{ url_for('add_task') }}" method="POST">
+    <div>
+        <label for="name">Name (タスク名):</label>
+        <input type="text" id="name" name="name" required>
+    </div>
+    <div>
+        <label for="detail">Detail (詳細):</label>
+        <textarea id="detail" name="detail"></textarea>
+    </div>
+    <div>
+        <label for="limitDate">Limit (期限):</label>
+        <input type="date" id="limitDate" name="limitDate">
+        <!-- Suggestion: Add a calendar icon here via CSS or JS if desired -->
+    </div>
+    <div>
+        <input type="checkbox" id="notMain" name="notMain">
+        <label for="notMain">[not Main]</label>
+    </div>
+    <div>
+        <button type="submit">Make (作成)</button>
+        <button type="button" id="cancelAddTask">Cancel (キャンセル)</button>
+        <!-- JS will handle #cancelAddTask to close popup -->
+    </div>
+</form>

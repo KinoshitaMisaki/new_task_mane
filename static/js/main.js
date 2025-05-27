@@ -585,12 +585,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // SortableJS for drag & drop
+    // Existing SortableJS for calendar view and other lists (keep if still used elsewhere)
     const dayColumns = document.querySelectorAll('.calendar-day-column');
-    const otherTasksList = document.getElementById('other-tasks-list');
-    const sortableLists = Array.from(dayColumns);
-    if (otherTasksList) { sortableLists.push(otherTasksList); }
+    const otherTasksListOriginal = document.getElementById('other-tasks-list'); // Renamed to avoid conflict
+    const sortableListsOriginal = Array.from(dayColumns);
+    if (otherTasksListOriginal) { sortableListsOriginal.push(otherTasksListOriginal); }
 
-    sortableLists.forEach(listEl => {
+    sortableListsOriginal.forEach(listEl => {
         if (!listEl) return; 
         new Sortable(listEl, {
             group: 'shared-tasks', 
@@ -608,7 +609,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     const taskIdsInOrder = Array.from(toList.children)
                                               .map(card => card.dataset.taskId)
                                               .filter(id => id !== undefined); 
+                    // This console log might be for the old lists if they are still active
                     console.log(`Task reordered in list ${toList.id || 'day-column-' + toList.dataset.date}. New order:`, taskIdsInOrder);
+                    // The fetch call here is fine as it's generic for reordering
                     fetch(`/api/tasks/update_order`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', },
@@ -619,15 +622,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         return response.json(); 
                     })
                     .then(data => {
-                        console.log('Task order updated successfully:', data);
+                        console.log('Task order updated successfully (original sorter):', data);
                         alert(`Task order updated for "${taskName}". Refreshing view.`);
                         location.reload();
                     })
                     .catch((error) => {
-                        console.error('Error updating task order:', error);
-                        alert(`Error updating task order for "${taskName}": ${error.error || error.message}. View may be inconsistent; please refresh.`);
+                        console.error('Error updating task order (original sorter):', error);
+                        alert(`Error updating task order for "${taskName}" (original sorter): ${error.error || error.message}. View may be inconsistent; please refresh.`);
                     });
                 } else { 
+                    // This part is for moving between different date columns in the old view
                     let newLimitDate = null;
                     if (toList.classList.contains('calendar-day-column')) { newLimitDate = toList.dataset.date; }
                     console.log(`Task ${taskId} moved. New limitDate: ${newLimitDate}`);
@@ -641,19 +645,404 @@ document.addEventListener('DOMContentLoaded', function() {
                         return response.json();
                     })
                     .then(updatedTask => {
-                        console.log('Task limitDate updated successfully:', updatedTask);
+                        console.log('Task limitDate updated successfully (original sorter):', updatedTask);
                         const index = tasksData.findIndex(t => t.id === parseInt(updatedTask.id)); 
                         if (index !== -1) { tasksData[index] = updatedTask; }
                         alert(`Task "${taskName}" limit date changed. Refreshing view.`);
                         location.reload();
                     })
                     .catch((error) => {
-                        console.error('Error updating task limitDate:', error);
-                        alert(`Error updating task "${taskName}": ${error.error || error.message}. View may be inconsistent; please refresh.`);
+                        console.error('Error updating task limitDate (original sorter):', error);
+                        alert(`Error updating task "${taskName}" (original sorter): ${error.error || error.message}. View may be inconsistent; please refresh.`);
                     });
                 }
             }
         });
     });
+
+    // New SortableJS instance for the main #sortableTaskList
+    const mainTaskListEl = document.getElementById('sortableTaskList');
+    if (mainTaskListEl) {
+        new Sortable(mainTaskListEl, {
+            animation: 150,
+            draggable: '.task-card', // Individual tasks are draggable
+            group: 'mainTaskListGroup', // Can be its own group if not dragging between different lists
+            onEnd: function(evt) {
+                const itemEl = evt.item; // dragged HTMLElement
+                const taskIdsInOrder = Array.from(mainTaskListEl.children)
+                    .map(card => card.dataset.taskId)
+                    .filter(id => id !== undefined); // Filter out any undefined if non-task elements are somehow there
+
+                console.log('New task order in main list:', taskIdsInOrder);
+
+                // AJAX POST request to update task order
+                fetch('/api/tasks/update_order', { // Using the existing, adapted backend route
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ task_ids_in_order: taskIdsInOrder }) // Ensure key matches backend
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => { throw (err || { error: 'Server error' }); });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Task order updated successfully:', data);
+                    // Optionally, provide user feedback e.g., a success message
+                    // For now, a page reload will show the new order from server
+                    // location.reload(); // Reload to see changes, or update UI dynamically
+                    alert('Task order saved! Refreshing to show new order.');
+                    location.reload();
+
+                })
+                .catch(error => {
+                    console.error('Error updating task order:', error);
+                    alert('Error updating task order: ' + (error.message || error.error || 'Unknown error'));
+                    // Optionally, revert optimistic UI changes or prompt user
+                });
+            }
+        });
+    }
+
+    // --- Logic for the new Task Detail/Edit Popup (Subtask Implementation) ---
+    const detailPopupContainer = document.getElementById('detailPopupContainer');
+    const mainTaskListArea = document.getElementById('taskListArea'); // Using the main task list area for clicks
+    const endedTasksListArea = document.getElementById('ended-tasks-list'); // For ended tasks
+    const deletedTasksListArea = document.getElementById('deleted-tasks-list'); // For deleted tasks
+
+
+    // Helper function to open detail popup (extracted from previous subtask logic)
+    async function openDetailPopup(taskId) {
+        if (!detailPopupContainer) return;
+
+        try {
+            detailPopupContainer.innerHTML = `
+                <form id="detailEditForm" method="POST">
+                    <input type="hidden" name="taskId" id="detailTaskId">
+                    <div>
+                        <label for="detailName">Name (タスク名):</label>
+                        <input type="text" name="name" id="detailName" required>
+                    </div>
+                    <div>
+                        <label for="detailLimitDate">Limit date (期限日):</label>
+                        <input type="date" name="limitDate" id="detailLimitDate">
+                    </div>
+                    <div>
+                        <label for="detailText">Detail (詳細):</label>
+                        <textarea name="detail" id="detailText" rows="3"></textarea>
+                    </div>
+                    <div>
+                        <input type="checkbox" name="notMain" id="detailNotMain">
+                        <label for="detailNotMain">[not Main]</label>
+                    </div>
+                    <hr>
+                    <p>Status Information:</p>
+                    <div>
+                        <p>Current Status: <span id="detailCurrentStatus">N/A</span></p>
+                        <p>Start Date: <span id="detailStartDateDisplay">N/A</span></p>
+                        <p>End Date: <span id="detailEndDateDisplay">N/A</span></p>
+                    </div>
+                    <hr>
+                    <p>Actions:</p>
+                    <div>
+                        <button type="button" id="detailStartButton">Start</button>
+                        <button type="button" id="detailEndButton">End</button>
+                        <button type="button" id="detailDeleteButton">Delete</button>
+                    </div>
+                    <hr>
+                    <p>Operations:</p>
+                    <div>
+                        <button type="submit" id="detailSaveButton">Save</button>
+                        <button type="button" id="detailCancelButton">Cancel</button>
+                    </div>
+                </form>
+            `;
+
+            const taskDetailsResponse = await fetch(`/get_task_details/${taskId}`);
+            if (!taskDetailsResponse.ok) {
+                const errorData = await taskDetailsResponse.json();
+                throw new Error(errorData.error || 'Failed to fetch task details');
+            }
+            const task = await taskDetailsResponse.json();
+
+            document.getElementById('detailTaskId').value = task.id;
+            document.getElementById('detailName').value = task.name || '';
+            document.getElementById('detailLimitDate').value = task.limitDate || '';
+            document.getElementById('detailText').value = task.detail || '';
+            document.getElementById('detailNotMain').checked = !task.isMainTask;
+            
+            document.getElementById('detailCurrentStatus').textContent = task.status || 'N/A';
+            document.getElementById('detailStartDateDisplay').textContent = task.startDate ? new Date(task.startDate).toLocaleDateString() : 'N/A';
+            document.getElementById('detailEndDateDisplay').textContent = task.endDate ? new Date(task.endDate).toLocaleDateString() : 'N/A';
+
+            detailPopupContainer.style.display = 'block';
+
+            // Wire up event listeners for the buttons within the loaded form
+            const detailEditFormInPopup = detailPopupContainer.querySelector('#detailEditForm');
+            if (detailEditFormInPopup) {
+                detailEditFormInPopup.onsubmit = async function(e) {
+                    e.preventDefault();
+                    const formData = new FormData(detailEditFormInPopup);
+                    const currentTaskId = formData.get('taskId');
+                    try {
+                        const updateResponse = await fetch(`/update_task/${currentTaskId}`, {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const result = await updateResponse.json();
+                        if (updateResponse.ok && result.status === 'success') {
+                            alert(result.message);
+                            detailPopupContainer.style.display = 'none';
+                            detailPopupContainer.innerHTML = '';
+                            location.reload();
+                        } else {
+                            throw new Error(result.message || 'Failed to update task');
+                        }
+                    } catch (err) {
+                        console.error('Error updating task:', err);
+                        alert('Error updating task: ' + err.message);
+                    }
+                };
+            }
+
+            const cancelButtonInPopup = detailPopupContainer.querySelector('#detailCancelButton');
+            if (cancelButtonInPopup) {
+                cancelButtonInPopup.onclick = function() {
+                    detailPopupContainer.style.display = 'none';
+                    detailPopupContainer.innerHTML = '';
+                };
+            }
+
+            const startButtonInPopup = detailPopupContainer.querySelector('#detailStartButton');
+            if (startButtonInPopup) {
+                startButtonInPopup.onclick = async function() {
+                    const currentTaskId = document.getElementById('detailTaskId').value;
+                    try {
+                        const startResponse = await fetch(`/task/${currentTaskId}/start`, { method: 'POST' });
+                        const result = await startResponse.json();
+                        if (startResponse.ok && result.status === 'success') {
+                            alert(result.message);
+                            document.getElementById('detailCurrentStatus').textContent = result.task.status;
+                            document.getElementById('detailStartDateDisplay').textContent = result.task.startDate ? new Date(result.task.startDate).toLocaleDateString() : 'N/A';
+                            document.getElementById('detailEndDateDisplay').textContent = result.task.endDate ? new Date(result.task.endDate).toLocaleDateString() : 'N/A';
+                            location.reload();
+                        } else {
+                            throw new Error(result.message || 'Failed to start task');
+                        }
+                    } catch (err) {
+                        console.error('Error starting task:', err);
+                        alert('Error starting task: ' + err.message);
+                    }
+                };
+            }
+            
+            const endButtonInPopup = detailPopupContainer.querySelector('#detailEndButton');
+            if (endButtonInPopup) {
+                endButtonInPopup.onclick = async function() {
+                    const currentTaskId = document.getElementById('detailTaskId').value;
+                     if (!confirm('Are you sure you want to mark this task as ended?')) return;
+                    try {
+                        const endResponse = await fetch(`/task/${currentTaskId}/end`, { method: 'POST' });
+                        const result = await endResponse.json();
+                        if (endResponse.ok && result.status === 'success') {
+                            alert(result.message);
+                            document.getElementById('detailCurrentStatus').textContent = result.task.status;
+                            document.getElementById('detailEndDateDisplay').textContent = result.task.endDate ? new Date(result.task.endDate).toLocaleDateString() : 'N/A';
+                            location.reload();
+                        } else {
+                            throw new Error(result.message || 'Failed to end task');
+                        }
+                    } catch (err) {
+                        console.error('Error ending task:', err);
+                        alert('Error ending task: ' + err.message);
+                    }
+                };
+            }
+
+            const deleteButtonInPopup = detailPopupContainer.querySelector('#detailDeleteButton');
+            if (deleteButtonInPopup) {
+                deleteButtonInPopup.onclick = function() { // This is the part that needs to be modified for this subtask
+                    const currentTaskIdInDetailPopup = document.getElementById('detailTaskId').value;
+                    if (!currentTaskIdInDetailPopup) {
+                        alert('Error: Task ID not found in detail popup.');
+                        return;
+                    }
+                    detailPopupContainer.style.display = 'none';
+                    detailPopupContainer.innerHTML = '';
+                    const deleteConfirmContainer = document.getElementById('deleteConfirmPopupContainer');
+                    if (deleteConfirmContainer) {
+                        deleteConfirmContainer.innerHTML = `
+                            <div>
+                                <input type="hidden" name="taskId" id="deleteConfirmTaskId">
+                                <div>
+                                    <label for="deleteReasonInput">Reason for delete (削除理由):</label>
+                                    <input type="text" name="reasonForDelete" id="deleteReasonInput" style="width: 90%;">
+                                </div>
+                                <p style="margin-top: 15px; margin-bottom: 15px;">Truly delete? Yes. (本当に削除しますか？ はい。)</p>
+                                <div>
+                                    <button type="button" id="confirmDeleteYesButton" style="margin-right: 10px;">Yes (はい)</button>
+                                    <button type="button" id="confirmDeleteCancelButton">Cancel (キャンセル)</button>
+                                </div>
+                            </div>
+                        `;
+                        const deleteConfirmTaskIdInput = deleteConfirmContainer.querySelector('#deleteConfirmTaskId');
+                        if (deleteConfirmTaskIdInput) {
+                            deleteConfirmTaskIdInput.value = currentTaskIdInDetailPopup;
+                        }
+                        deleteConfirmContainer.style.display = 'block';
+                        const yesButton = deleteConfirmContainer.querySelector('#confirmDeleteYesButton');
+                        const cancelButtonDel = deleteConfirmContainer.querySelector('#confirmDeleteCancelButton'); // Renamed to avoid conflict
+                        const reasonInput = deleteConfirmContainer.querySelector('#deleteReasonInput');
+                        if (yesButton) {
+                            yesButton.onclick = async function() {
+                                const taskIdToDelete = deleteConfirmTaskIdInput ? deleteConfirmTaskIdInput.value : null;
+                                const reasonForDelete = reasonInput ? reasonInput.value : '';
+                                if (!taskIdToDelete) {
+                                    alert('Error: Task ID for deletion is missing.');
+                                    return;
+                                }
+                                try {
+                                    const response = await fetch(`/task/${taskIdToDelete}/delete_confirm`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ reasonForDelete: reasonForDelete })
+                                    });
+                                    const result = await response.json();
+                                    if (response.ok && result.status === 'success') {
+                                        alert(result.message);
+                                        deleteConfirmContainer.style.display = 'none';
+                                        deleteConfirmContainer.innerHTML = '';
+                                        location.reload();
+                                    } else {
+                                        throw new Error(result.message || 'Failed to delete task');
+                                    }
+                                } catch (err) {
+                                    console.error('Error deleting task:', err);
+                                    alert('Error deleting task: ' + err.message);
+                                }
+                            };
+                        }
+                        if (cancelButtonDel) { // Use renamed variable
+                            cancelButtonDel.onclick = function() {
+                                deleteConfirmContainer.style.display = 'none';
+                                deleteConfirmContainer.innerHTML = '';
+                            };
+                        }
+                    } else {
+                         alert('Delete confirmation popup container not found.');
+                    }
+                };
+            }
+
+        } catch (error) {
+            console.error('Error in openDetailPopup:', error);
+            alert('Error: ' + error.message);
+            if (detailPopupContainer) { // Check if detailPopupContainer is still valid
+                detailPopupContainer.innerHTML = '<p>Error loading task details.</p>';
+                detailPopupContainer.style.display = 'block';
+            }
+        }
+    }
+
+    if (mainTaskListArea && detailPopupContainer) {
+        mainTaskListArea.addEventListener('click', async function(event) {
+            const taskCard = event.target.closest('.task-card'); // For active tasks
+            if (!taskCard) return;
+
+            const taskId = taskCard.dataset.taskId;
+            if (!taskId) return;
+            openDetailPopup(taskId); // Use the helper function
+        });
+    }
+
+    // Add event listeners for ended and deleted task sections to open detail popup
+    if (endedTasksListArea && detailPopupContainer) {
+        endedTasksListArea.addEventListener('click', function(event) {
+            const targetElement = event.target;
+            // Check if the click was on the span within the li, or the li itself
+            const taskItem = targetElement.closest('.ended-task-item');
+            if (taskItem && taskItem.dataset.taskId) {
+                 // Prevent button click from also triggering this
+                if (targetElement.tagName === 'BUTTON' || targetElement.classList.contains('restore-task-btn')) return;
+                openDetailPopup(taskItem.dataset.taskId);
+            }
+        });
+    }
+
+    if (deletedTasksListArea && detailPopupContainer) {
+        deletedTasksListArea.addEventListener('click', function(event) {
+            const targetElement = event.target;
+            const taskItem = targetElement.closest('.deleted-task-item');
+            if (taskItem && taskItem.dataset.taskId) {
+                if (targetElement.tagName === 'BUTTON' || targetElement.classList.contains('restore-deleted-task-btn')) return;
+                openDetailPopup(taskItem.dataset.taskId);
+            }
+        });
+    }
+
+
+    // Modify existing restore logic to use the new /task/<id>/restore route
+    // For .restore-task-btn (originally in ended tasks)
+    if (endedTasksSection) { // endedTasksSection is the <ul>'s parent div
+        endedTasksSection.addEventListener('click', function(event) {
+            if (event.target.classList.contains('restore-task-btn')) {
+                const taskId = event.target.dataset.taskId;
+                if (!confirm('Are you sure you want to restore this task to active?')) return;
+
+                fetch(`/task/${taskId}/restore`, { // Using the new unified restore route
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' } // Though this route doesn't strictly need a body
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => { throw (err || {error: 'Failed to restore task.'}); });
+                    }
+                    return response.json();
+                })
+                .then(result => {
+                    console.log('Task restored successfully:', result);
+                    alert(result.message || 'Task restored successfully! Refreshing page.');
+                    location.reload();
+                })
+                .catch(error => {
+                    console.error('Error restoring task:', error);
+                    alert(`Error restoring task: ${error.error || error.message}`);
+                });
+            }
+        });
+    }
+
+    // For .restore-deleted-task-btn (originally in deleted tasks)
+    if (deletedTasksSection) { // deletedTasksSection is the <ul>'s parent div
+        deletedTasksSection.addEventListener('click', function(event) {
+            if (event.target.classList.contains('restore-deleted-task-btn')) {
+                const taskId = event.target.dataset.taskId;
+                if (!confirm('Are you sure you want to restore this task from deleted items?')) return;
+
+                fetch(`/task/${taskId}/restore`, { // Using the new unified restore route
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => { throw (err || {error: 'Failed to restore deleted task.'}); });
+                    }
+                    return response.json();
+                })
+                .then(result => {
+                    console.log('Deleted task restored successfully:', result);
+                    alert(result.message || 'Task restored from deleted items! Refreshing page.');
+                    location.reload();
+                })
+                .catch(error => {
+                    console.error('Error restoring deleted task:', error);
+                    alert(`Error restoring task: ${error.error || error.message}`);
+                });
+            }
+        });
+    }
 
 });
