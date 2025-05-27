@@ -141,14 +141,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
         let taskVisibleCount = 0;
         if (Array.isArray(tasksData)) {
-            tasksData.forEach((task) => { 
-                // console.log('[Gantt] Processing task:', JSON.parse(JSON.stringify(task))); // This is the detailed log
-            if (!task.startDate) {
-                // console.log('[Gantt] Task skipped (no startDate):', task.id, task.name);
-                return; 
-            }
+            tasksData.forEach((task, index) => { 
+                // Step 1: Confirm Loop Iteration
+                console.log(`[GANTT_DEBUG] Iterating forEach loop. Index: ${index}, Task ID: ${task ? task.id : 'N/A'}`);
+                // console.log('[GANTT_DEBUG] Full task object in loop:', JSON.parse(JSON.stringify(task))); // Optional detailed log
 
-            const taskStartDate = new Date(task.startDate + 'T00:00:00');
+                try { // Step 3: Add try...catch for early error detection in loop
+                    // Step 2: Uncomment existing detailed logs
+                    console.log('[Gantt] Processing task:', JSON.parse(JSON.stringify(task))); 
+
+                    if (!task.startDate) {
+                        console.log('[Gantt] Task skipped (no startDate):', task.id, task.name);
+                        return; 
+                    }
+
+                    const taskStartDate = new Date(task.startDate + 'T00:00:00');
+                    if (isNaN(taskStartDate.getTime())) {
+                        console.error(`[GANTT_ERROR] Invalid startDate for task ID ${task.id}: ${task.startDate}`);
+                        return; // Skip this task
+                    }
             let effectiveEndDate; // This is the date the task *ends on* (inclusive)
 
             if (task.endDate) {
@@ -174,7 +185,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const barActualEnd = effectiveBarEndDateForDurationCalc < viewEndDate ? effectiveBarEndDateForDurationCalc : viewEndDate;
 
             if (barActualStart >= barActualEnd) { // Task is outside the view or has zero duration in view
-                // console.log('[Gantt] Task skipped (actualStart >= actualEnd):', task.id, task.name, barActualStart, barActualEnd);
+                console.log('[Gantt] Task skipped (actualStart >= actualEnd):', task.id, task.name, barActualStart, barActualEnd);
                 return;
             }
 
@@ -182,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function() {
             let durationDays = (barActualEnd - barActualStart) / (1000 * 60 * 60 * 24);
             
             if (durationDays <= 0) {
-                // console.log('[Gantt] Task skipped (duration <= 0 days in view):', task.id, task.name);
+                console.log('[Gantt] Task skipped (duration <= 0 days in view):', task.id, task.name);
                 return;
             }
 
@@ -206,11 +217,11 @@ document.addEventListener('DOMContentLoaded', function() {
             taskBarDiv.style.top = `${barTop}px`;
             
             taskBarDiv.textContent = task.name;
-            // console.log(`[Gantt] Task: ${task.name}, ID: ${task.id}, StartDate: ${task.startDate}, EndDate (effective): ${effectiveEndDate.toISOString().split('T')[0]}, Bar Left: ${barLeft}px, CalculatedBarWidth: ${calculatedBarWidth}px, FinalBarWidth: ${barWidth}px, Bar Top: ${barTop}px`);
+            console.log(`[Gantt] Task for Bar: ${task.name}, ID: ${task.id}, StartDate: ${task.startDate}, EndDate (effective): ${effectiveEndDate.toISOString().split('T')[0]}, Bar Left: ${barLeft}px, CalculatedBarWidth: ${calculatedBarWidth}px, FinalBarWidth: ${barWidth}px, Bar Top: ${barTop}px`);
             taskBarDiv.title = `${task.name} (Start: ${task.startDate}, End: ${task.endDate || task.limitDate || task.startDate})`;
 
 
-            const todayDateObj = new Date(todayData + 'T00:00:00');
+            const todayDateObj = new Date(todayData + 'T00:00:00'); // todayData should be valid from initializeDates
             const limitDateObj = task.limitDate ? new Date(task.limitDate + 'T00:00:00') : null;
             const endDateObj = task.endDate ? new Date(task.endDate + 'T00:00:00') : null;
 
@@ -231,13 +242,19 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             taskRowsContainerEl.appendChild(taskBarDiv);
-            // console.log('[Gantt] Appended task bar for:', task.name, taskBarDiv);
+            console.log('[Gantt] Appended task bar for:', task.name, taskBarDiv);
             taskVisibleCount++;
-        });
+
+                } catch (e) { // Catch for errors within forEach iteration
+                    console.error(`[GANTT_ERROR] Error processing task ID ${task ? task.id : 'N/A'} in forEach:`, e.message, e.stack);
+                    // Optionally, continue to the next task if one task is problematic
+                    // return; // 'return' in forEach acts like 'continue'
+                }
+            });
         } // Closes: if (Array.isArray(tasksData))
 
         if (taskVisibleCount === 0 && tasksData.length > 0) {
-            // console.log('[Gantt] No tasks were eligible for rendering after filtering (e.g. no startDate, or outside view range).');
+            console.log('[Gantt] No tasks were eligible for rendering after filtering (e.g. no startDate, or outside view range, or error during processing).');
             taskRowsContainerEl.innerHTML = '<p style="text-align:center; padding-top:20px;">No tasks with valid start dates within the current view range.</p>';
         }
         taskRowsContainerEl.style.height = `${Math.max(taskVisibleCount * taskRowHeight, taskRowHeight)}px`;
