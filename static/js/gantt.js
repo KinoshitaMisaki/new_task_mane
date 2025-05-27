@@ -22,18 +22,54 @@ document.addEventListener('DOMContentLoaded', function() {
     const taskBarTopMargin = (taskRowHeight - taskBarHeight) / 2;
     const MIN_BAR_WIDTH_PX = 5; // Minimum pixel width for any bar to ensure visibility
 
-    const today = new Date(todayData + 'T00:00:00');
-    let viewStartDate = new Date(today);
-    viewStartDate.setDate(today.getDate() - 7); 
+    let today; // Will be initialized in renderGanttChart after logging todayData
+    let viewStartDate;
+    let viewEndDate;
 
-    let viewEndDate = new Date(today);
-    viewEndDate.setFullYear(today.getFullYear() + 1); 
+    function initializeDates() {
+        try {
+            console.log('[GANTT_DEBUG] Initializing dates. todayData:', todayData);
+            if (typeof todayData !== 'string' || !todayData.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                console.error('[GANTT_ERROR] todayData is invalid or not in YYYY-MM-DD format:', todayData);
+                // Fallback to prevent further errors, though Gantt might be incorrect
+                today = new Date(); 
+                today.setHours(0,0,0,0);
+            } else {
+                today = new Date(todayData + 'T00:00:00');
+            }
+            console.log('[GANTT_DEBUG] Parsed today object for Gantt:', today);
+            if (isNaN(today.getTime())) { // Check if date is valid
+                console.error('[GANTT_ERROR] Failed to parse todayData into a valid date. today object is Invalid Date.');
+                // Fallback to ensure viewStartDate/viewEndDate are valid dates
+                today = new Date(); 
+                today.setHours(0,0,0,0);
+            }
+
+            viewStartDate = new Date(today);
+            viewStartDate.setDate(today.getDate() - 7); 
+
+            viewEndDate = new Date(today);
+            viewEndDate.setFullYear(today.getFullYear() + 1); 
+            console.log('[GANTT_DEBUG] viewStartDate:', viewStartDate, 'viewEndDate:', viewEndDate);
+
+        } catch (error) {
+            console.error('[GANTT_ERROR] Error in initializeDates:', error.message, error.stack);
+            // Fallback to safe dates if initialization fails
+            today = new Date(); today.setHours(0,0,0,0);
+            viewStartDate = new Date(today); viewStartDate.setDate(today.getDate() - 7);
+            viewEndDate = new Date(today); viewEndDate.setFullYear(today.getFullYear() + 1);
+            console.warn('[GANTT_DEBUG] Using fallback dates due to error.');
+        }
+    }
+
 
     function renderGanttChart() {
         console.log('[GANTT_DEBUG] renderGanttChart() function called.');
         console.log('[GANTT_DEBUG] tasksData available to renderGanttChart:', typeof tasksData !== 'undefined' ? JSON.parse(JSON.stringify(tasksData)) : 'NOT DEFINED');
-        console.log('[GANTT_DEBUG] todayData available to renderGanttChart:', typeof todayData !== 'undefined' ? todayData : 'NOT DEFINED');
+        // todayData is logged by initializeDates now
         console.log('[GANTT_DEBUG] Current pixelsPerDay:', pixelsPerDay);
+        
+        initializeDates(); // Ensure dates are initialized/re-initialized if they could change
 
         if (!timelineHeaderEl || !taskRowsContainerEl) {
             console.error("[GANTT_DEBUG] Gantt timeline header or task rows container not found in renderGanttChart. Aborting render.");
@@ -43,40 +79,70 @@ document.addEventListener('DOMContentLoaded', function() {
         timelineHeaderEl.innerHTML = '';
         taskRowsContainerEl.innerHTML = '';
 
-        const totalDaysInView = Math.ceil((viewEndDate - viewStartDate) / (1000 * 60 * 60 * 24));
-        const totalWidth = totalDaysInView * pixelsPerDay;
-
-        timelineHeaderEl.style.width = `${totalWidth}px`;
-        taskRowsContainerEl.style.width = `${totalWidth}px`;
-
-        // Render Month Headers
-        let currentMonthProcessing = new Date(viewStartDate);
-        while(currentMonthProcessing <= viewEndDate) {
-            const monthMarker = document.createElement('div');
-            monthMarker.className = 'gantt-header-marker gantt-month-marker';
-            
-            const firstDayOfMonth = new Date(currentMonthProcessing.getFullYear(), currentMonthProcessing.getMonth(), 1);
-            const lastDayOfMonth = new Date(currentMonthProcessing.getFullYear(), currentMonthProcessing.getMonth() + 1, 0);
-            
-            let startOfMarker = (firstDayOfMonth > viewStartDate) ? firstDayOfMonth : viewStartDate;
-            let endOfMarker = (lastDayOfMonth < viewEndDate) ? lastDayOfMonth : viewEndDate;
-            
-            let daysInThisMarker = (endOfMarker - startOfMarker) / (1000 * 60 * 60 * 24) + 1; // +1 to include the end day fully
-            daysInThisMarker = Math.max(0, Math.round(daysInThisMarker));
-
-            if (daysInThisMarker > 0) {
-                monthMarker.style.width = `${daysInThisMarker * pixelsPerDay}px`;
-                monthMarker.textContent = `${firstDayOfMonth.toLocaleString('default', { month: 'short' })} ${firstDayOfMonth.getFullYear()}`;
-                timelineHeaderEl.appendChild(monthMarker);
+        let totalDaysInView, totalWidth;
+        try {
+            if (isNaN(viewStartDate.getTime()) || isNaN(viewEndDate.getTime())) {
+                throw new Error('viewStartDate or viewEndDate is an Invalid Date.');
             }
-            currentMonthProcessing.setMonth(currentMonthProcessing.getMonth() + 1);
-            currentMonthProcessing.setDate(1); // Move to the first of next month
+            totalDaysInView = Math.ceil((viewEndDate - viewStartDate) / (1000 * 60 * 60 * 24));
+            if (totalDaysInView < 0) totalDaysInView = 0; // Should not happen if dates are correct
+            totalWidth = totalDaysInView * pixelsPerDay;
+            console.log('[GANTT_DEBUG] totalDaysInView:', totalDaysInView, 'totalWidth:', totalWidth);
+
+            timelineHeaderEl.style.width = `${totalWidth}px`;
+            taskRowsContainerEl.style.width = `${totalWidth}px`;
+        } catch (error) {
+            console.error('[GANTT_ERROR] Error calculating timeline dimensions:', error.message, error.stack);
+            return; // Critical error, cannot proceed
         }
 
+        try {
+            // Render Month Headers
+            let currentMonthProcessing = new Date(viewStartDate);
+            if (isNaN(currentMonthProcessing.getTime())) throw new Error('viewStartDate is invalid for month processing.');
+
+            while(currentMonthProcessing <= viewEndDate) {
+                const monthMarker = document.createElement('div');
+                monthMarker.className = 'gantt-header-marker gantt-month-marker';
+                
+                const firstDayOfMonth = new Date(currentMonthProcessing.getFullYear(), currentMonthProcessing.getMonth(), 1);
+                const lastDayOfMonth = new Date(currentMonthProcessing.getFullYear(), currentMonthProcessing.getMonth() + 1, 0);
+                
+                let startOfMarker = (firstDayOfMonth > viewStartDate) ? firstDayOfMonth : viewStartDate;
+                let endOfMarker = (lastDayOfMonth < viewEndDate) ? lastDayOfMonth : viewEndDate;
+                
+                let daysInThisMarker = (endOfMarker.getTime() - startOfMarker.getTime()) / (1000 * 60 * 60 * 24) + 1; 
+                daysInThisMarker = Math.max(0, Math.round(daysInThisMarker));
+
+                if (daysInThisMarker > 0) {
+                    monthMarker.style.width = `${daysInThisMarker * pixelsPerDay}px`;
+                    monthMarker.textContent = `${firstDayOfMonth.toLocaleString('default', { month: 'short' })} ${firstDayOfMonth.getFullYear()}`;
+                    timelineHeaderEl.appendChild(monthMarker);
+                }
+                
+                currentMonthProcessing.setMonth(currentMonthProcessing.getMonth() + 1);
+                if (currentMonthProcessing.getMonth() === 0) { // Wrapped around year
+                    currentMonthProcessing.setDate(1); // Ensure it's first of month
+                }
+                 // Safety break for infinite loop, though less likely with month increments
+                if (currentMonthProcessing > new Date(viewEndDate.getFullYear() + 2, 0, 1)) { // Allow buffer
+                    console.error("[GANTT_ERROR] Infinite loop detected in month header rendering. Breaking.");
+                    break;
+                }
+            }
+            console.log('[GANTT_DEBUG] Successfully rendered month headers.');
+        } catch (error) {
+            console.error('[GANTT_ERROR] Error rendering month headers:', error.message, error.stack);
+            // Can choose to return or continue without headers
+        }
+
+        console.log('[GANTT_DEBUG] About to start tasksData processing loop.');
+        console.log('[GANTT_DEBUG] Verifying tasksData before loop. IsArray:', Array.isArray(tasksData), 'Length:', tasksData ? tasksData.length : 'N/A');
 
         let taskVisibleCount = 0;
-        tasksData.forEach((task) => { 
-            // console.log('[Gantt] Processing task:', JSON.parse(JSON.stringify(task))); // Already logged
+        if (Array.isArray(tasksData)) {
+            tasksData.forEach((task) => { 
+                // console.log('[Gantt] Processing task:', JSON.parse(JSON.stringify(task))); // This is the detailed log
             if (!task.startDate) {
                 // console.log('[Gantt] Task skipped (no startDate):', task.id, task.name);
                 return; 
