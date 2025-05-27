@@ -43,3 +43,148 @@
     background-color: #ddffdd; /* Light green */
     border-left: 5px solid #4CAF50; /* Green */
 }
+
+#gantt-chart-area {
+    margin-top: 20px;
+    border: 1px solid #ccc;
+    padding: 10px;
+    /* Basic height and overflow for now */
+    min-height: 100px; 
+}
+.gantt-chart-header {
+    /* Styles for date headers - to be implemented */
+    padding-bottom: 5px;
+    border-bottom: 1px solid #eee;
+}
+.gantt-chart-rows {
+    position: relative; /* For future absolute positioning of bars if needed */
+}
+.gantt-task-row {
+    margin-bottom: 5px;
+    /* Each row will contain one bar for now */
+}
+.gantt-task-bar {
+    /* Common styling for all bars */
+    color: white;
+    padding: 3px 8px; /* Smaller padding for compact look */
+    border-radius: 3px;
+    height: 25px; 
+    line-height: 25px; /* Center text vertically */
+    font-size: 12px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    width: 200px; /* Default fixed width for now, actual width by date later */
+    /* Add box-shadow or other visual cues if desired */
+}
+/* Color coding for Gantt bars - should match task cards */
+.gantt-task-bar.overdue {
+    background-color: #f44336; /* Red */
+}
+.gantt-task-bar.due-soon {
+    background-color: #9c27b0; /* Purple */
+}
+.gantt-task-bar.default-color {
+    background-color: #4CAF50; /* Green */
+}
+/* Placeholder text style */
+.gantt-placeholder {
+   color: #777;
+   font-style: italic;
+}
+
+/* For task cards that are started */
+.task-card.started {
+    background-color: orange !important; /* Use !important to override other background colors if needed */
+    border: 2px solid red !important; /* Red border */
+    /* Adjust padding if border affects layout, or use outline */
+}
+
+/* For Gantt bars that are started */
+.gantt-task-bar.started {
+    background-color: orange !important; /* Orange bar */
+}
+
+/* Styling for the Detail/Edit Task Form */
+#detail-edit-task-form div {
+    margin-bottom: 10px;
+}
+#detail-edit-task-form label {
+    display: block;
+    margin-bottom: 3px;
+}
+#detail-edit-task-form input[type="text"],
+#detail-edit-task-form input[type="date"],
+#detail-edit-task-form textarea {
+    width: calc(100% - 16px); /* Adjust for padding/border */
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-sizing: border-box; /* Ensures padding and border don't increase width */
+}
+#detail-edit-task-form textarea {
+    min-height: 60px;
+    resize: vertical;
+}
+#detail-edit-task-form button {
+    margin-right: 5px;
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+#delete-confirm-modal textarea {
+    width: calc(100% - 16px);
+    padding: 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+#delete-confirm-modal button { 
+    margin-top: 5px; 
+    margin-right: 5px; /* Added for spacing between buttons */
+    padding: 8px 12px; /* Consistent padding */
+    cursor: pointer;
+}
+#detail-edit-task-form hr {
+   margin-top: 15px;
+   margin-bottom: 15px;
+   border: 0;
+   border-top: 1px solid #eee;
+}
+
+/* Ensure checkbox and its label are aligned nicely */
+#detail-edit-task-form div input[type="checkbox"] {
+    width: auto; /* Override the full-width setting */
+    margin-right: 5px;
+    vertical-align: middle;
+}
+#detail-edit-task-form div label[for="edit-task-not-main"] {
+    display: inline; /* Allow label to sit next to checkbox */
+    font-weight: normal;
+}
+
+#ended-tasks-section {
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid #eee;
+}
+#ended-tasks-list {
+    list-style-type: none;
+    padding-left: 0;
+}
+.ended-task-item {
+    padding: 8px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.ended-task-item:last-child {
+    border-bottom: none;
+}
+.restore-task-btn {
+    padding: 5px 10px;
+    cursor: pointer;
+}

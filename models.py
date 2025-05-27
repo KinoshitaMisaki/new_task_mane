@@ -20,3 +20,20 @@ class Task(db.Model):
 
     def __repr__(self):
         return f'<Task {self.name}>'
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'detail': self.detail,
+            'limitDate': self.limitDate.isoformat() if self.limitDate else None,
+            'period': self.period,
+            'startDate': self.startDate.isoformat() if self.startDate else None,
+            'endDate': self.endDate.isoformat() if self.endDate else None,
+            'status': self.status,
+            'isMainTask': self.isMainTask,
+            'reasonForDelete': self.reasonForDelete,
+            'orderIndex': self.orderIndex,
+            'createdAt': self.createdAt.isoformat(),
+            'updatedAt': self.updatedAt.isoformat()
+        }
